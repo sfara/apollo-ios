@@ -100,8 +100,8 @@ download_apollo_cli_if_needed
 validate_codegen_and_extract_if_needed
 
 # Add the binary directory to the beginning of PATH so included binary version of node is used.
-PATH="${SCRIPT_DIR}/apollo/bin:${PATH}"
-
+# Included node binary does not work with Apple Silicon, so use homebrew version if available
+PATH="/opt/homebrew/bin:${SCRIPT_DIR}/apollo/bin:${PATH}"
 # Use the bundled executable of the Apollo CLI to generate code
 APOLLO_CLI="${SCRIPT_DIR}/apollo/bin/run"
 
