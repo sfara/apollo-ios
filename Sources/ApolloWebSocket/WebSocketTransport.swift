@@ -51,6 +51,7 @@ public class WebSocketTransport {
 
   private var subscribers = [String: (Result<JSONObject, any Error>) -> Void]()
   private var subscriptions : [String: String] = [:]
+  private var reconnectWorkItem: DispatchWorkItem?
   let processingQueue = DispatchQueue(label: "com.apollographql.WebSocketTransport")
 
   fileprivate var reconnected = false
@@ -288,7 +289,7 @@ public class WebSocketTransport {
 
   public func closeConnection() {
     self.reconnect = false
-
+    self.reconnectWorkItem?.cancel()
     let str = OperationMessage(type: .connectionTerminate).rawMessage
     processingQueue.async {
       if let str = str {
@@ -405,6 +406,7 @@ public class WebSocketTransport {
   /// ALSO NOTE: To reconnect after calling this, you will need to call `resumeWebSocketConnection`.
   public func pauseWebSocketConnection() {
     self.reconnect = false
+    self.reconnectWorkItem?.cancel()
     self.websocket.disconnect(forceTimeout: 2.0)
   }
   
@@ -572,8 +574,8 @@ extension WebSocketTransport: WebSocketClientDelegate {
     guard self.reconnect else {
       return
     }
-
-    DispatchQueue.main.asyncAfter(deadline: .now() + config.reconnectionInterval) { [weak self] in
+    reconnectWorkItem?.cancel()
+    let workItem = DispatchWorkItem { [weak self] in
       guard let self = self else { return }
       self.$socketConnectionState.mutate { socketConnectionState in
         switch socketConnectionState {
@@ -588,6 +590,8 @@ extension WebSocketTransport: WebSocketClientDelegate {
       }
       self.websocket.connect()
     }
+    reconnectWorkItem = workItem
+    DispatchQueue.main.asyncAfter(deadline: .now() + config.reconnectionInterval, execute: workItem)
   }
 
   public func websocketDidReceiveMessage(socket: any WebSocketClient, text: String) {
